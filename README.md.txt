@@ -1,3 +1,8 @@
+## How to Run
+```bash
+pip install google-adk
+python game_referee.py
+
 Rock–Paper–Scissors–Plus Referee Bot
 
 State Model:
@@ -19,3 +24,4 @@ Future Improvements:
 - Smarter bot strategy
 - Better intent parsing
 - Structured outputs
+
