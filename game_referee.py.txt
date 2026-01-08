@@ -1,0 +1,132 @@
+from google.adk.agents import Agent
+from google.adk.tools import tool
+import random
+
+VALID_MOVES = ["rock", "paper", "scissors", "bomb"]
+
+game_state = {
+    "round": 0,
+    "user_score": 0,
+    "bot_score": 0,
+    "user_bomb_used": False,
+    "bot_bomb_used": False,
+    "game_over": False
+}
+
+@tool
+def validate_move(move: str, player: str) -> dict:
+    move = move.lower().strip()
+
+    if move not in VALID_MOVES:
+        return {"valid": False}
+
+    if move == "bomb":
+        if player == "user" and game_state["user_bomb_used"]:
+            return {"valid": False}
+        if player == "bot" and game_state["bot_bomb_used"]:
+            return {"valid": False}
+
+    return {"valid": True, "move": move}
+
+@tool
+def resolve_round(user_move: str, bot_move: str) -> dict:
+    if user_move == bot_move:
+        return {"winner": "draw"}
+
+    if user_move == "bomb":
+        return {"winner": "user"}
+
+    if bot_move == "bomb":
+        return {"winner": "bot"}
+
+    rules = {
+        "rock": "scissors",
+        "scissors": "paper",
+        "paper": "rock"
+    }
+
+    if rules[user_move] == bot_move:
+        return {"winner": "user"}
+
+    return {"winner": "bot"}
+
+@tool
+def update_game_state(result: str, user_move: str, bot_move: str) -> dict:
+    game_state["round"] += 1
+
+    if user_move == "bomb":
+        game_state["user_bomb_used"] = True
+    if bot_move == "bomb":
+        game_state["bot_bomb_used"] = True
+
+    if result == "user":
+        game_state["user_score"] += 1
+    elif result == "bot":
+        game_state["bot_score"] += 1
+
+    if game_state["round"] >= 3:
+        game_state["game_over"] = True
+
+    return game_state
+
+agent = Agent(
+    name="RPSPlusReferee",
+    instructions="""
+You are a referee for Rock-Paper-Scissors-Plus.
+Explain rules briefly.
+Ask user for move.
+Use tools to validate moves, decide winner, and update state.
+End the game after 3 rounds.
+""",
+    tools=[validate_move, resolve_round, update_game_state]
+)
+
+def bot_move():
+    if not game_state["bot_bomb_used"] and random.random() < 0.2:
+        return "bomb"
+    return random.choice(["rock", "paper", "scissors"])
+
+def play(user_input: str):
+    if game_state["game_over"]:
+        return "Game Over."
+
+    user_check = validate_move(user_input, "user")
+
+    if not user_check["valid"]:
+        update_game_state("draw", "invalid", "invalid")
+        return f"Invalid move. Round {game_state['round']} wasted."
+
+    user_move = user_check["move"]
+    bot_choice = bot_move()
+
+    result = resolve_round(user_move, bot_choice)["winner"]
+    update_game_state(result, user_move, bot_choice)
+
+    reply = (
+        f"Round {game_state['round']}\n"
+        f"You: {user_move} | Bot: {bot_choice}\n"
+        f"Winner: {result.upper()}"
+    )
+
+    if game_state["game_over"]:
+        if game_state["user_score"] > game_state["bot_score"]:
+            reply += "\nFINAL RESULT: YOU WIN"
+        elif game_state["bot_score"] > game_state["user_score"]:
+            reply += "\nFINAL RESULT: BOT WINS"
+        else:
+            reply += "\nFINAL RESULT: DRAW"
+
+    return reply
+
+    print("Welcome to Rock-Paper-Scissors-Plus")
+print("Rules: rock, paper, scissors, bomb (bomb only once)")
+print("Best of 3 rounds\n")
+
+while True:
+    user_input = input("Enter your move: ")
+    result = play(user_input)
+    print(result)
+
+    if game_state["game_over"]:
+        break
+
